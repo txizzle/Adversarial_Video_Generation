@@ -58,20 +58,22 @@ Using the error measurements outlined in the paper (Peak Signal to Noise Ratio a
   -t/--train_dir= <Directory of full training frames>
   -c/--clips_dir= <Save directory for processed clips>
                   (I suggest making this a hidden dir so the filesystem doesn't freeze
-                   with so many files. DON'T `ls` THIS DIRECTORY!)
+                   with so many files. DON'T `ls` THIS DIRECTORY! By default, the directory name is 
+                   hardcoded as '.Clips')
   -o/--overwrite  (Overwrites the previous data in clips_dir)
   -H/--help       (prints usage)
   ```
   - This can take a few hours to complete, depending on the number of clips you want.
+  - For example, run `python process_data.py -t ../Data/Ms_Pacman/Train/ -c ../Data/.Clips/`
   
 4. Train/Test:
   - If you want to plug-and-play with the Ms. Pac-Man dataset, you can [download my trained models here](https://drive.google.com/open?id=0Byf787GZQ7KvR2JvMUNIZnFlbm8). Load them using the `-l` option. (e.g. `python avg_runner.py -l ./Models/Adversarial/model.ckpt-500000`).
   - Train and test your network by running `python avg_runner.py` from the `Code/` directory with the following options:
   ```
-  -l/--load_path=    <Relative/path/to/saved/model>
-  -t/--test_dir=     <Directory of test images>
+  -l/--load_path=    <Relative/path/to/saved/model> (Default = None)
+  -t/--test_dir=     <Directory of test images> (For example, ../Data/Ms_Pacman/Test/)
   -r--recursions=    <# recursive predictions to make on test>
-  -a/--adversarial=  <{t/f}> (Whether to use adversarial training. Default=True)
+  -a/--adversarial=  <{t/f}> (Whether to use adversarial training. Default = True)
   -n/--name=         <Subdirectory of ../Data/Save/*/ in which to save output of this run>
   -O/--overwrite     (Overwrites all previous data for the model with this save name)
   -T/--test_only     (Only runs a test step -- no training)
