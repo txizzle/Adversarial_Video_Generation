@@ -342,7 +342,7 @@ class GeneratorModel:
 
         return global_step
 
-    def test_batch(self, batch, global_step, num_rec_out=1, save_imgs=True):
+    def test_batch(self, batch, global_step, num_rec_out=1, save_imgs=True, predict=False):
         """
         Runs a training step using the global loss on each of the scale networks.
 
@@ -380,8 +380,13 @@ class GeneratorModel:
         for rec_num in xrange(num_rec_out):
             working_gt_frames = gt_frames[:, :, :, 3 * rec_num:3 * (rec_num + 1)]
 
-            feed_dict = {self.input_frames_test: working_input_frames,
-                         self.gt_frames_test: working_gt_frames}
+            # if it's a prediction (live), we don't have ground truth
+            if predict:
+                feed_dict = {self.input_frames_test: working_input_frames,
+                             self.gt_frames_test: np.zeros(working_gt_frames.shape)}
+            else:
+                feed_dict = {self.input_frames_test: working_input_frames,
+                             self.gt_frames_test: working_gt_frames}
             preds, psnr, sharpdiff, summaries = self.sess.run([self.scale_preds_test[-1],
                                                                self.psnr_error_test,
                                                                self.sharpdiff_error_test,

@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 import getopt
 import sys
@@ -29,30 +30,31 @@ class AVGRunner:
         self.sess = tf.Session()
         self.summary_writer = tf.summary.FileWriter(c.SUMMARY_SAVE_DIR, graph=self.sess.graph)
 
-        if c.ADVERSARIAL:
-            print 'Init discriminator...'
-            self.d_model = DiscriminatorModel(self.sess,
-                                              self.summary_writer,
-                                              c.TRAIN_HEIGHT,
-                                              c.TRAIN_WIDTH,
-                                              c.SCALE_CONV_FMS_D,
-                                              c.SCALE_KERNEL_SIZES_D,
-                                              c.SCALE_FC_LAYER_SIZES_D)
+        with tf.variable_scope('avg_runner'):
+            if c.ADVERSARIAL:
+                print 'Init discriminator...'
+                self.d_model = DiscriminatorModel(self.sess,
+                                                  self.summary_writer,
+                                                  c.TRAIN_HEIGHT,
+                                                  c.TRAIN_WIDTH,
+                                                  c.SCALE_CONV_FMS_D,
+                                                  c.SCALE_KERNEL_SIZES_D,
+                                                  c.SCALE_FC_LAYER_SIZES_D)
 
-        print 'Init generator...'
-        self.g_model = GeneratorModel(self.sess,
-                                      self.summary_writer,
-                                      c.TRAIN_HEIGHT,
-                                      c.TRAIN_WIDTH,
-                                      c.FULL_HEIGHT,
-                                      c.FULL_WIDTH,
-                                      c.SCALE_FMS_G,
-                                      c.SCALE_KERNEL_SIZES_G)
+            print 'Init generator...'
+            self.g_model = GeneratorModel(self.sess,
+                                          self.summary_writer,
+                                          c.TRAIN_HEIGHT,
+                                          c.TRAIN_WIDTH,
+                                          c.FULL_HEIGHT,
+                                          c.FULL_WIDTH,
+                                          c.SCALE_FMS_G,
+                                          c.SCALE_KERNEL_SIZES_G)
 
         print 'Init variables...'
-        self.saver = tf.train.Saver(keep_checkpoint_every_n_hours=2)
+        avg_runner_vars = [k for k in tf.all_variables() if k.name.startswith("avg_runner")]
+        self.saver = tf.train.Saver(var_list=avg_runner_vars, keep_checkpoint_every_n_hours=2)
         self.sess.run(tf.global_variables_initializer())
-
         # if load path specified, load a saved model
         if model_load_path is not None:
             self.saver.restore(self.sess, model_load_path)
@@ -96,6 +98,13 @@ class AVGRunner:
         batch = get_test_batch(c.BATCH_SIZE, num_rec_out=self.num_test_rec)
         self.g_model.test_batch(
             batch, self.global_step, num_rec_out=self.num_test_rec)
+
+    def predict(self, x):
+        # x: [batch_size x self.height x self.width x (3 * (c.HIST_LEN))]
+        blank = np.zeros(x.shape[:-1]+(3*self.num_test_rec,))
+        x = np.concatenate((x, blank), axis=3)
+        self.g_model.test_batch(
+            x, self.global_step, num_rec_out=self.num_test_rec)
 
 
 def usage():
