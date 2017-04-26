@@ -67,15 +67,14 @@ copy_ops = [actor_var.assign(critic_vars[var_name])
             for var_name, actor_var in actor_vars.items()]
 copy_critic_to_actor = tf.group(*copy_ops)
 
-with tf.variable_scope("train"):
-    X_action = tf.placeholder(tf.int32, shape=[None])
-    y = tf.placeholder(tf.float32, shape=[None, 1])
-    q_value = tf.reduce_sum(critic_q_values * tf.one_hot(X_action, n_outputs),
-                            reduction_indices=1, keep_dims=True)
-    cost = tf.reduce_mean(tf.square(y - q_value))
-    global_step = tf.Variable(0, trainable=False, name="global_step")
-    optimizer = tf.train.AdamOptimizer(learning_rate)
-    training_op = optimizer.minimize(cost, global_step=global_step)
+X_action = tf.placeholder(tf.int32, shape=[None])
+y = tf.placeholder(tf.float32, shape=[None, 1])
+q_value = tf.reduce_sum(critic_q_values * tf.one_hot(X_action, n_outputs),
+                        reduction_indices=1, keep_dims=True)
+cost = tf.reduce_mean(tf.square(y - q_value))
+global_step = tf.Variable(0, trainable=False, name="global_step")
+optimizer = tf.train.AdamOptimizer(learning_rate)
+training_op = optimizer.minimize(cost, global_step=global_step)
 
 init = tf.initialize_all_variables()
 saver = tf.train.Saver()
@@ -165,8 +164,21 @@ with tf.Session() as sess:
         # print(obs.shape) # (210, 160, 3)
         # plt.imshow(obs)
         # plt.show()
+
+        # obs2 = dynamics_model.predict(obs)
+        # plt.imshow(obs2)
+        # plt.show()
+
         frames_history = np.roll(frames_history, 3, axis=3)
-        frames_history[0,:,:,0:3] = utils.normalize_frames(obs)
+        frames_history[0,:,:,0:3] = utils.normalize_frames(obs.reshape((1,)+obs.shape))
+        pred = utils.denormalize_frames(dynamics_model.predict(frames_history))[0]
+
+        #print(pred.shape)
+        plt.imshow(pred)
+        plt.show()
+
+        # plt.imshow(frames_history)
+        # plt.show()
 
         rewards_history.append(reward)
 

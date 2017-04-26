@@ -52,7 +52,7 @@ class AVGRunner:
                                           c.SCALE_KERNEL_SIZES_G)
 
         print 'Init variables...'
-        avg_runner_vars = [k for k in tf.all_variables() if k.name.startswith("avg_runner")]
+        avg_runner_vars = [k for k in tf.global_variables() if k.name.startswith("avg_runner")]
         self.saver = tf.train.Saver(var_list=avg_runner_vars, keep_checkpoint_every_n_hours=2)
         self.sess.run(tf.global_variables_initializer())
         # if load path specified, load a saved model
@@ -96,6 +96,7 @@ class AVGRunner:
         Runs one test step on the generator network.
         """
         batch = get_test_batch(c.BATCH_SIZE, num_rec_out=self.num_test_rec)
+        #self.predict(batch)
         self.g_model.test_batch(
             batch, self.global_step, num_rec_out=self.num_test_rec)
 
@@ -103,8 +104,11 @@ class AVGRunner:
         # x: [batch_size x self.height x self.width x (3 * (c.HIST_LEN))]
         blank = np.zeros(x.shape[:-1]+(3*self.num_test_rec,))
         x = np.concatenate((x, blank), axis=3)
-        self.g_model.test_batch(
-            x, self.global_step, num_rec_out=self.num_test_rec)
+        #print(x.shape)
+        #print(x)
+        y = self.g_model.test_batch(
+            x, self.global_step, num_rec_out=self.num_test_rec, save_imgs=False, predict=True)
+        return y[0]
 
 
 def usage():

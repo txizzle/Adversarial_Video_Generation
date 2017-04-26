@@ -431,3 +431,6 @@ class GeneratorModel:
                     imsave(os.path.join(pred_dir, 'gt_' + str(rec_num) + '.png'), gt_img)
 
         print '-' * 30
+
+        if predict:
+            return rec_preds
