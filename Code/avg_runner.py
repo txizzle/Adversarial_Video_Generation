@@ -4,7 +4,7 @@ import getopt
 import sys
 import os
 
-from utils import get_train_batch, get_test_batch
+from utils import get_train_batch, get_test_batch, process_clip
 import constants as c
 from g_model import GeneratorModel
 from d_model import DiscriminatorModel
@@ -60,7 +60,47 @@ class AVGRunner:
             self.saver.restore(self.sess, model_load_path)
             print 'Model restored from ' + model_load_path
 
-    def train(self):
+    def train(self, x, a, print_out=True):
+        """
+        Runs a training loop on the model networks.
+        """
+        # assume a is a number in range (0, c.ACTION_SPACE)
+
+        action = np.eye(c.ACTION_SPACE)[[a]]
+        # action = tf.one_hot(a, 10).eval()
+        if c.ADVERSARIAL:
+            # update discriminator
+            batch = process_clip(x)
+            batch = batch.reshape((1,)+batch.shape)
+            if print_out:
+                print 'Training discriminator...'
+            self.d_model.train_step(batch, self.g_model, print_out=print_out)
+
+        # update generator
+        batch = process_clip(x)
+        batch = batch.reshape((1,)+batch.shape)
+        if print_out:
+            print 'Training generator...'
+        self.global_step = self.g_model.train_step(
+            batch, action, discriminator=(self.d_model if c.ADVERSARIAL else None), print_out=print_out)
+
+        # save the models
+        if self.global_step % c.MODEL_SAVE_FREQ == 0:
+            if print_out:
+                print '-' * 30
+                print 'Saving models...'
+            self.saver.save(self.sess,
+                            c.MODEL_SAVE_DIR + 'model.ckpt',
+                            global_step=self.global_step)
+            if print_out:
+                print 'Saved models!'
+                print '-' * 30
+
+        # test generator model
+        if self.global_step % c.TEST_FREQ == 0:
+            self.predict(x, a)
+
+    def train_from_files(self, print_out=True):
         """
         Runs a training loop on the model networks.
         """
@@ -68,46 +108,52 @@ class AVGRunner:
             if c.ADVERSARIAL:
                 # update discriminator
                 batch = get_train_batch()
-                print 'Training discriminator...'
-                self.d_model.train_step(batch, self.g_model)
+                if print_out:
+                    print 'Training discriminator...'
+                self.d_model.train_step(batch, self.g_model, print_out=print_out)
 
             # update generator
             batch = get_train_batch()
-            print 'Training generator...'
+            if print_out:
+                print 'Training generator...'
             self.global_step = self.g_model.train_step(
-                batch, discriminator=(self.d_model if c.ADVERSARIAL else None))
+                batch, discriminator=(self.d_model if c.ADVERSARIAL else None), print_out=print_out)
 
             # save the models
             if self.global_step % c.MODEL_SAVE_FREQ == 0:
-                print '-' * 30
-                print 'Saving models...'
+                if print_out:
+                    print '-' * 30
+                    print 'Saving models...'
                 self.saver.save(self.sess,
                                 c.MODEL_SAVE_DIR + 'model.ckpt',
                                 global_step=self.global_step)
-                print 'Saved models!'
-                print '-' * 30
+                if print_out:
+                    print 'Saved models!'
+                    print '-' * 30
 
             # test generator model
             if self.global_step % c.TEST_FREQ == 0:
-                self.test()
+                self.test_from_files()
 
-    def test(self):
+    def test_from_files(self, print_out=True):
         """
         Runs one test step on the generator network.
         """
-        batch = get_test_batch(c.BATCH_SIZE, num_rec_out=self.num_test_rec)
+        batch = get_test_batch(c.BATCH_SIZE, num_rec_out=self.num_test_rec, print_out=print_out)
         #self.predict(batch)
         self.g_model.test_batch(
-            batch, self.global_step, num_rec_out=self.num_test_rec)
+            batch, self.global_step, num_rec_out=self.num_test_rec, print_out=print_out)
 
-    def predict(self, x):
+    def predict(self, x, a, print_out=True):
+        #action = tf.one_hot(a, 10).eval()
+        action = np.eye(c.ACTION_SPACE)[[a]]
         # x: [batch_size x self.height x self.width x (3 * (c.HIST_LEN))]
         blank = np.zeros(x.shape[:-1]+(3*self.num_test_rec,))
         x = np.concatenate((x, blank), axis=3)
         #print(x.shape)
         #print(x)
         y = self.g_model.test_batch(
-            x, self.global_step, num_rec_out=self.num_test_rec, save_imgs=False, predict=True)
+            x, action, self.global_step, num_rec_out=self.num_test_rec, save_imgs=False, predict=True, print_out=print_out)
         return y[0]
 
 
@@ -189,9 +235,9 @@ def main():
 
     runner = AVGRunner(num_steps, load_path, num_test_rec)
     if test_only:
-        runner.test()
+        runner.test_from_files()
     else:
-        runner.train()
+        runner.train_from_files()
 
 
 if __name__ == '__main__':

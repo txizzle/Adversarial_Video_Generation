@@ -88,6 +88,8 @@ FULL_WIDTH = 160
 # the height and width of the patches to train on
 TRAIN_HEIGHT = TRAIN_WIDTH = 32
 
+ACTION_SPACE = 10
+
 ##
 # Output
 ##
@@ -132,6 +134,8 @@ SUMMARY_FREQ    = 100    # how often to save the summaries, in # steps
 IMG_SAVE_FREQ   = 1000   # how often to save generated images, in # steps
 TEST_FREQ       = 5000   # how often to test the model on test data, in # steps
 MODEL_SAVE_FREQ = 10000  # how often to save the model, in # steps
+
+
 
 ##
 # General training
