@@ -1,6 +1,8 @@
 from __future__ import division, print_function, unicode_literals
 from avg_runner import AVGRunner
 
+from copy import copy
+
 import utils
 import constants as c
 import matplotlib.pyplot as plt
@@ -129,6 +131,29 @@ num_steps = 1000001
 frames_history = np.zeros((1, c.FULL_HEIGHT, c.FULL_WIDTH, 3*c.HIST_LEN))
 dynamics_model = AVGRunner(num_steps, args.model_path, num_test_rec)
 
+# Game Tree
+MAXIMUM_DEPTH = 2
+BRANCHING_FACTOR = env.action_space.n
+class Node:
+    def __init__(self, parent, action):
+        self.state = None
+        self.parent = parent
+        self.action = action # Action parent took to get to child
+        self.children = []
+        self.explored_children = 0
+        self.depth = 0
+        # self.visits = 0
+        # self.value = 0
+
+    def set_env(self, state):
+        self.state = state
+
+def add_children(node, branching_factor):
+    for action in range(branching_factor):
+        child = Node(node, action)
+        child.depth = node.depth + 1
+        node.children.append(child)
+
 with tf.Session() as sess:
     if os.path.isfile(args.path):
         saver.restore(sess, args.path)
@@ -149,11 +174,38 @@ with tf.Session() as sess:
         if args.render:
             env.render()
 
+        # TODO: se dynamics to create a game tree of a certain depth.
+        root = Node(None, None)
+        root.set_env(env)
+        add_children(root, BRANCHING_FACTOR) # expand to depth 1, HARDCODED right now
+        best_action = None
+        # best_qval = float("-inf")
+        best_qval = -100000
+        for child in root.children:
+            cloned_env = copy(env)
+            obs, reward, done, info = cloned_env.step(child.action)
+            child.set_env(cloned_env)
+            # Actor evaluates what to do
+            q_values = actor_q_values.eval(feed_dict={X_state: [preprocess_observation_dqn(obs)]})
+            child_best_qval = np.max(q_values) # Skipping epsilon-greedy
+            if child_best_qval > best_qval:
+                best_qval = child_best_qval
+                best_action = child.action # Set best action from ROOT to be action that leads to this child
+            root.explored_children += 1 # Not needed right now
+            cloned_env.close() # closed cloned env
+
         # Actor evaluates what to do
         q_values = actor_q_values.eval(feed_dict={X_state: [state]})
         epsilon = max(epsilon_min, epsilon_max - (epsilon_max - epsilon_min) * global_step.eval() / epsilon_decay_steps)
         action = epsilon_greedy(q_values, epsilon)
 
+        if best_action != np.argmax(q_values): # So we ignore e-greedy
+            print("Different actions! DQN: " + str(np.argmax(q_values)) + ", Lookahead: " + str(best_action))
+        else:
+            print("DQN and Lookahead predict same actions!")
+
+        # TODO: Add e-greedy for best_action vs. random action once we confirm this is ok
+        
         # Actor plays
         obs, reward, done, info = env.step(action)
         next_state = preprocess_observation_dqn(obs)
@@ -173,9 +225,10 @@ with tf.Session() as sess:
         frames_history[0,:,:,0:3] = utils.normalize_frames(obs.reshape((1,)+obs.shape))
         pred = utils.denormalize_frames(dynamics_model.predict(frames_history))[0]
 
-        #print(pred.shape)
-        plt.imshow(pred)
-        plt.show()
+        # if step % 100 == 0:
+        #     #print(pred.shape)
+        #     plt.imshow(pred)
+        #     plt.show()
 
         # plt.imshow(frames_history)
         # plt.show()
