@@ -90,14 +90,17 @@ def get_full_clips(data_dir, num_clips, num_rec_out=1):
 
     return clips
 
-def process_clip():
+def process_clip(clip=None):
     """
     Gets a clip from the train dataset, cropped randomly to c.TRAIN_HEIGHT x c.TRAIN_WIDTH.
 
     @return: An array of shape [c.TRAIN_HEIGHT, c.TRAIN_WIDTH, (3 * (c.HIST_LEN + 1))].
              A frame sequence with values normalized in range [-1, 1].
     """
-    clip = get_full_clips(c.TRAIN_DIR, 1)[0]
+    if clip is None:
+        clip = get_full_clips(c.TRAIN_DIR, 1)[0]
+    else:
+        clip = clip[0]
 
     # Randomly crop the clip. With 0.05 probability, take the first crop offered, otherwise,
     # repeat until we have a clip with movement in it.
@@ -107,7 +110,6 @@ def process_clip():
         crop_x = np.random.choice(c.FULL_WIDTH - c.TRAIN_WIDTH + 1)
         crop_y = np.random.choice(c.FULL_HEIGHT - c.TRAIN_HEIGHT + 1)
         cropped_clip = clip[crop_y:crop_y + c.TRAIN_HEIGHT, crop_x:crop_x + c.TRAIN_WIDTH, :]
-
         if take_first or clip_l2_diff(cropped_clip) > c.MOVEMENT_THRESHOLD:
             break
 
@@ -129,7 +131,6 @@ def get_train_batch():
         clips[i] = clip
 
     return clips
-
 
 def get_test_batch(test_batch_size, num_rec_out=1):
     """

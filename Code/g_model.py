@@ -58,6 +58,9 @@ class GeneratorModel:
             ##
 
             with tf.name_scope('data'):
+                self.input_actions = tf.placeholder(
+                    tf.float32, shape=[None, c.ACTION_SPACE])
+
                 self.input_frames_train = tf.placeholder(
                     tf.float32, shape=[None, self.height_train, self.width_train, 3 * c.HIST_LEN])
                 self.gt_frames_train = tf.placeholder(
@@ -100,7 +103,7 @@ class GeneratorModel:
                             bs.append(b([self.scale_layer_fms[scale_num][i + 1]]))
 
                     with tf.name_scope('calculation'):
-                        def calculate(height, width, inputs, gts, last_gen_frames):
+                        def calculate(height, width, inputs, gts, actions, last_gen_frames):
                             # scale inputs and gts
                             scale_factor = 1. / 2 ** ((self.num_scale_nets - 1) - scale_num)
                             scale_height = int(height * scale_factor)
@@ -122,6 +125,9 @@ class GeneratorModel:
                             # perform convolutions
                             with tf.name_scope('convolutions'):
                                 for i in xrange(len(self.scale_kernel_sizes[scale_num])):
+                                    dense = tf.layers.dense(actions, scale_height*scale_width, activation=tf.nn.relu)
+                                    dense = tf.reshape(dense, [1, scale_height, scale_width, 1])
+                                    tf.concat([preds, dense], 3)
                                     # Convolve layer
                                     preds = tf.nn.conv2d(
                                         preds, ws[i], [1, 1, 1, 1], padding=c.PADDING_G)
@@ -150,6 +156,7 @@ class GeneratorModel:
                                                            self.width_train,
                                                            self.input_frames_train,
                                                            self.gt_frames_train,
+                                                           self.input_actions,
                                                            last_scale_pred_train)
                         self.scale_preds_train.append(train_preds)
                         self.scale_gts_train.append(train_gts)
@@ -176,6 +183,7 @@ class GeneratorModel:
                                                          self.width_test,
                                                          self.input_frames_test,
                                                          self.gt_frames_test,
+                                                         self.input_actions,
                                                          last_scale_pred_test)
                         self.scale_preds_test.append(test_preds)
                         self.scale_gts_test.append(test_gts)
@@ -232,13 +240,16 @@ class GeneratorModel:
             self.summaries_train = tf.summary.merge(self.summaries_train)
             self.summaries_test = tf.summary.merge(self.summaries_test)
 
-    def train_step(self, batch, discriminator=None):
+    def train_step(self, batch, actions, discriminator=None, print_out=False):
         """
         Runs a training step using the global loss on each of the scale networks.
 
         @param batch: An array of shape
                       [c.BATCH_SIZE x self.height x self.width x (3 * (c.HIST_LEN + 1))].
                       The input and output frames, concatenated along the channel axis (index 3).
+        @param actions: An array of shape
+                      [c.BATCH_SIZE x c.ACTION_SPACE]
+                      The most recent action taken in the sequence of frames.
         @param discriminator: The discriminator model. Default = None, if not adversarial.
 
         @return: The global step.
@@ -254,7 +265,8 @@ class GeneratorModel:
         # Train
         ##
 
-        feed_dict = {self.input_frames_train: input_frames, self.gt_frames_train: gt_frames}
+        feed_dict = {self.input_frames_train: input_frames, self.gt_frames_train: gt_frames,
+                     self.input_actions: actions}
 
         if c.ADVERSARIAL:
             # Run the generator first to get generated frames
@@ -282,15 +294,15 @@ class GeneratorModel:
         ##
         # User output
         ##
-        if global_step % c.STATS_FREQ == 0:
+        if global_step % c.STATS_FREQ == 0 and print_out:
             print 'GeneratorModel : Step ', global_step
             print '                 Global Loss    : ', global_loss
             print '                 PSNR Error     : ', global_psnr_error
             print '                 Sharpdiff Error: ', global_sharpdiff_error
-        if global_step % c.SUMMARY_FREQ == 0:
+        if global_step % c.SUMMARY_FREQ == 0 and print_out:
             self.summary_writer.add_summary(summaries, global_step)
             print 'GeneratorModel: saved summaries'
-        if global_step % c.IMG_SAVE_FREQ == 0:
+        if global_step % c.IMG_SAVE_FREQ == 0 and print_out:
             print '-' * 30
             print 'Saving images...'
 
@@ -337,12 +349,13 @@ class GeneratorModel:
                     imsave(path + '_gen.png', gen_img)
                     imsave(path + '_gt.png', gt_img)
 
-            print 'Saved images!'
-            print '-' * 30
+            if print_out:
+                print 'Saved images!'
+                print '-' * 30
 
         return global_step
 
-    def test_batch(self, batch, global_step, num_rec_out=1, save_imgs=True, predict=False):
+    def test_batch(self, batch, actions, global_step, num_rec_out=1, save_imgs=True, predict=False, print_out=True):
         """
         Runs a training step using the global loss on each of the scale networks.
 
@@ -350,6 +363,9 @@ class GeneratorModel:
                       [batch_size x self.height x self.width x (3 * (c.HIST_LEN+ num_rec_out))].
                       A batch of the input and output frames, concatenated along the channel axis
                       (index 3).
+        @param actions: An array of shape
+                      [c.BATCH_SIZE x c.ACTION_SPACE]
+                      The most recent action taken in the sequence of frames.
         @param global_step: The global step.
         @param num_rec_out: The number of outputs to predict. Outputs > 1 are computed recursively,
                             using previously-generated frames as input. Default = 1.
@@ -360,8 +376,9 @@ class GeneratorModel:
         if num_rec_out < 1:
             raise ValueError('num_rec_out must be >= 1')
 
-        print '-' * 30
-        print 'Testing:'
+        if print_out:
+            print '-' * 30
+            print 'Testing:'
 
         ##
         # Split into inputs and outputs
@@ -383,10 +400,12 @@ class GeneratorModel:
             # if it's a prediction (live), we don't have ground truth
             if predict:
                 feed_dict = {self.input_frames_test: working_input_frames,
-                             self.gt_frames_test: np.zeros(working_gt_frames.shape)}
+                             self.gt_frames_test: np.zeros(working_gt_frames.shape),
+                             self.input_actions: actions}
             else:
                 feed_dict = {self.input_frames_test: working_input_frames,
-                             self.gt_frames_test: working_gt_frames}
+                             self.gt_frames_test: working_gt_frames,
+                             self.input_actions: actions}
             preds, psnr, sharpdiff, summaries = self.sess.run([self.scale_preds_test[-1],
                                                                self.psnr_error_test,
                                                                self.sharpdiff_error_test,
@@ -401,9 +420,10 @@ class GeneratorModel:
             rec_preds.append(preds)
             rec_summaries.append(summaries)
 
-            print 'Recursion ', rec_num
-            print 'PSNR Error     : ', psnr
-            print 'Sharpdiff Error: ', sharpdiff
+            if print_out:
+                print 'Recursion ', rec_num
+                print 'PSNR Error     : ', psnr
+                print 'Sharpdiff Error: ', sharpdiff
 
         # write summaries
         # TODO: Think of a good way to write rec output summaries - rn, just using first output.

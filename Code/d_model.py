@@ -146,7 +146,7 @@ class DiscriminatorModel:
 
         return feed_dict
 
-    def train_step(self, batch, generator):
+    def train_step(self, batch, generator, print_out=True):
         """
         Runs a training step using the global loss on each of the scale networks.
 
@@ -178,9 +178,9 @@ class DiscriminatorModel:
         # User output
         ##
 
-        if global_step % c.STATS_FREQ == 0:
+        if global_step % c.STATS_FREQ == 0 and print_out:
             print 'DiscriminatorModel: step %d | global loss: %f' % (global_step, global_loss)
-        if global_step % c.SUMMARY_FREQ == 0:
+        if global_step % c.SUMMARY_FREQ == 0 and print_out:
             print 'DiscriminatorModel: saved summaries'
             self.summary_writer.add_summary(summaries, global_step)
 

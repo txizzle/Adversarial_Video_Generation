@@ -129,6 +129,7 @@ rewards_history = []
 num_test_rec = 1  # number of recursive predictions to make on test
 num_steps = 1000001
 frames_history = np.zeros((1, c.FULL_HEIGHT, c.FULL_WIDTH, 3*c.HIST_LEN))
+#dynamics_model = AVGRunner(num_steps, args.model_path, num_test_rec)
 dynamics_model = AVGRunner(num_steps, args.model_path, num_test_rec)
 
 # Game Tree
@@ -174,7 +175,7 @@ with tf.Session() as sess:
         if args.render:
             env.render()
 
-        # TODO: se dynamics to create a game tree of a certain depth.
+        # Create state tree
         root = Node(None, None)
         root.set_env(env)
         add_children(root, BRANCHING_FACTOR) # expand to depth 1, HARDCODED right now
@@ -221,14 +222,16 @@ with tf.Session() as sess:
         # plt.imshow(obs2)
         # plt.show()
 
-        frames_history = np.roll(frames_history, 3, axis=3)
-        frames_history[0,:,:,0:3] = utils.normalize_frames(obs.reshape((1,)+obs.shape))
-        pred = utils.denormalize_frames(dynamics_model.predict(frames_history))[0]
-
-        # if step % 100 == 0:
-        #     #print(pred.shape)
-        #     plt.imshow(pred)
-        #     plt.show()
+        frames_history = np.roll(frames_history, -3, axis=3)
+        frames_history[0,:,:,-3:] = utils.normalize_frames(obs.reshape((1,)+obs.shape))
+        if iteration % 1000 == 0: # TODO: replace 100 with a constante
+            # TODO: swap 0 with what you're actually trying to generate
+            for a in range(c.ACTION_SPACE):
+                pred = utils.denormalize_frames(dynamics_model.predict(frames_history, a, print_out=False))[0]
+                plt.imsave('./Temp3/%06i_%i.png'%(iteration, a), pred)
+        if iteration > c.HIST_LEN + num_test_rec:
+            dynamics_model.train(frames_history, action, print_out=False)
+        #print(pred.shape)
 
         # plt.imshow(frames_history)
         # plt.show()
