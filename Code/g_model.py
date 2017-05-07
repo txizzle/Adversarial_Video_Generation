@@ -42,6 +42,8 @@ class GeneratorModel:
         self.height_test = height_test
         self.width_test = width_test
         self.scale_layer_fms = scale_layer_fms
+        for i in range(len(self.scale_layer_fms)):
+            self.scale_layer_fms[i][0] += 1
         self.scale_kernel_sizes = scale_kernel_sizes
         self.num_scale_nets = len(scale_layer_fms)
 
@@ -122,12 +124,37 @@ class GeneratorModel:
                             # generated frame predictions
                             preds = inputs
 
+                            # with tf.name_scope('actions'):
+                            #     dense = tf.layers.dense(actions, scale_height*scale_width, activation=tf.nn.relu)
+                            #     dense = tf.reshape(dense, [1, scale_height, scale_width, 1])
+                            #     #dense = tf.stack([dense]*preds.shape[0])
+                            #     preds = tf.concat([preds, dense], 3)
+
+                            input_actions_size = actions.get_shape().as_list()[1]
+
+                            num_repeats = (scale_height*scale_width)/input_actions_size
+                            num_padding = (scale_height*scale_width)%input_actions_size
+
+                            idx = tf.range(input_actions_size)
+                            idx = tf.reshape(idx, [-1, 1])
+                            idx = tf.tile(idx, [1, num_repeats])
+                            idx = tf.transpose(idx)
+                            idx = tf.reshape(idx, [-1])
+
+                            actions = tf.map_fn(lambda x: tf.gather(x, idx), actions)
+                            padding = [0 for _ in range(num_padding)]
+                            actions = tf.map_fn(lambda x: tf.concat([x, padding], 0), actions)
+
+                            actions = tf.reshape(actions, [1, scale_height, scale_width, 1])
+                            preds = tf.concat([preds, actions], 3)
+
+                            # actions = np.append(np.repeat(actions, num_repeats), [0 for _ in range(num_padding)])
+                            # actions = np.reshape(actions, (1, scale_height, scale_width, 1))
+                            # preds = tf.concat([preds, actions], 3)
+
                             # perform convolutions
                             with tf.name_scope('convolutions'):
                                 for i in xrange(len(self.scale_kernel_sizes[scale_num])):
-                                    dense = tf.layers.dense(actions, scale_height*scale_width, activation=tf.nn.relu)
-                                    dense = tf.reshape(dense, [1, scale_height, scale_width, 1])
-                                    tf.concat([preds, dense], 3)
                                     # Convolve layer
                                     preds = tf.nn.conv2d(
                                         preds, ws[i], [1, 1, 1, 1], padding=c.PADDING_G)
@@ -276,6 +303,7 @@ class GeneratorModel:
             d_feed_dict = {}
             for scale_num, gen_frames in enumerate(scale_preds):
                 d_feed_dict[discriminator.scale_nets[scale_num].input_frames] = gen_frames
+                d_feed_dict[discriminator.scale_nets[scale_num].input_actions] = actions
             d_scale_preds = self.sess.run(discriminator.scale_preds, feed_dict=d_feed_dict)
 
             # Add discriminator predictions to the

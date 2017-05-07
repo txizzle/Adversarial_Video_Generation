@@ -37,6 +37,7 @@ class DScaleModel:
         self.height = height
         self.width = width
         self.conv_layer_fms = conv_layer_fms
+        self.conv_layer_fms[0] += 1 # to account for actions
         self.kernel_sizes = kernel_sizes
         self.fc_layer_sizes = fc_layer_sizes
 
@@ -53,7 +54,9 @@ class DScaleModel:
         ##
         with tf.name_scope('input'):
             self.input_frames = tf.placeholder(
-                tf.float32, shape=[None, self.height, self.width, self.conv_layer_fms[0]])
+                tf.float32, shape=[None, self.height, self.width, self.conv_layer_fms[0]-1])
+            self.input_actions = tf.placeholder(
+                tf.float32, shape=[None, c.ACTION_SPACE])
 
             # use variable batch_size for more flexibility
             self.batch_size = tf.shape(self.input_frames)[0]
@@ -109,6 +112,38 @@ class DScaleModel:
             with tf.name_scope('calculation'):
                 preds = tf.zeros([self.batch_size, 1])
                 last_input = self.input_frames
+
+                # TODO: verify that the size here is 1
+                # TODO: replace this with dynamic size (or as constant)
+                input_actions_size = self.input_actions.get_shape().as_list()[1]
+
+                num_repeats = (self.height*self.width)/input_actions_size
+                num_padding = (self.height*self.width)%input_actions_size
+
+                idx = tf.range(input_actions_size)
+                idx = tf.reshape(idx, [-1, 1])
+                idx = tf.tile(idx, [1, num_repeats])
+                idx = tf.transpose(idx)
+                idx = tf.reshape(idx, [-1])
+
+                actions = tf.map_fn(lambda x: tf.gather(x, idx), self.input_actions)
+                padding = [0 for _ in range(num_padding)]
+                actions = tf.map_fn(lambda x: tf.concat([x, padding], 0), actions)
+
+                # actions = tf.gather(self.input_actions, idx)
+                # actions = tf.concat([actions, padding], 0)
+                # actions = np.append(actions, [0 for _ in num_padding])
+                actions = tf.reshape(actions, [1, self.height, self.width, 1])
+                shape = tf.stack([tf.shape(last_input)[0], 1, 1, 1])
+                actions = tf.tile(actions, shape)
+                last_input = tf.concat([last_input, actions], 3)
+
+                # with tf.name_scope('actions'):
+                #     dense = tf.layers.dense(self.input_actions, self.height*self.width, activation=tf.nn.relu)
+                #     dense = tf.reshape(dense, [1, self.height, self.width, 1])
+                #     shape = tf.stack([tf.shape(last_input)[0], 1, 1, 1])
+                #     dense = tf.tile(dense, shape)
+                #     last_input = tf.concat([last_input, dense], 3)
 
                 # convolutions
                 with tf.name_scope('convolutions'):

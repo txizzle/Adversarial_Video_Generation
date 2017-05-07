@@ -92,7 +92,7 @@ class DiscriminatorModel:
                 loss_summary = tf.summary.scalar('loss_D', self.global_loss)
                 self.summaries = tf.summary.merge([loss_summary])
 
-    def build_feed_dict(self, input_frames, gt_output_frames, generator):
+    def build_feed_dict(self, input_frames, actions, gt_output_frames, generator):
         """
         Builds a feed_dict with resized inputs and outputs for each scale network.
 
@@ -114,7 +114,8 @@ class DiscriminatorModel:
         ##
 
         g_feed_dict = {generator.input_frames_train: input_frames,
-                       generator.gt_frames_train: gt_output_frames}
+                       generator.gt_frames_train: gt_output_frames,
+                       generator.input_actions: actions}
         g_scale_preds = self.sess.run(generator.scale_preds_train, feed_dict=g_feed_dict)
 
         ##
@@ -138,6 +139,7 @@ class DiscriminatorModel:
 
             # convert to np array and add to feed_dict
             feed_dict[scale_net.input_frames] = scaled_input_frames
+            feed_dict[scale_net.input_actions] = actions
 
         # add labels for each image to feed_dict
         batch_size = np.shape(input_frames)[0]
@@ -146,7 +148,7 @@ class DiscriminatorModel:
 
         return feed_dict
 
-    def train_step(self, batch, generator, print_out=True):
+    def train_step(self, batch, actions, generator, print_out=True):
         """
         Runs a training step using the global loss on each of the scale networks.
 
@@ -168,7 +170,7 @@ class DiscriminatorModel:
         # Train
         ##
 
-        feed_dict = self.build_feed_dict(input_frames, gt_output_frames, generator)
+        feed_dict = self.build_feed_dict(input_frames, actions, gt_output_frames, generator)
 
         _, global_loss, global_step, summaries = self.sess.run(
             [self.train_op, self.global_loss, self.global_step, self.summaries],

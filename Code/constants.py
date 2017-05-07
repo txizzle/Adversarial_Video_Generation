@@ -78,7 +78,7 @@ TEST_DIR = os.path.join(DATA_DIR, 'Ms_Pacman/Test/')
 TRAIN_DIR_CLIPS = get_dir(os.path.join(DATA_DIR, '.Clips/'))
 
 # For processing clips. l2 diff between frames must be greater than this
-MOVEMENT_THRESHOLD = 100
+MOVEMENT_THRESHOLD = 100*0.2
 # total number of processed clips in TRAIN_DIR_CLIPS
 NUM_CLIPS = len(glob(TRAIN_DIR_CLIPS + '*'))
 
@@ -88,7 +88,7 @@ FULL_WIDTH = 160
 # the height and width of the patches to train on
 TRAIN_HEIGHT = TRAIN_WIDTH = 32
 
-ACTION_SPACE = 10
+ACTION_SPACE = 3
 
 ##
 # Output

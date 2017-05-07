@@ -74,7 +74,7 @@ class AVGRunner:
             batch = batch.reshape((1,)+batch.shape)
             if print_out:
                 print 'Training discriminator...'
-            self.d_model.train_step(batch, self.g_model, print_out=print_out)
+            self.d_model.train_step(batch, action, self.g_model, print_out=print_out)
 
         # update generator
         batch = process_clip(x)

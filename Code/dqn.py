@@ -27,7 +27,7 @@ import os
 import tensorflow as tf
 from tensorflow.contrib.layers import convolution2d, fully_connected
 
-env = gym.make("MsPacman-v0")
+env = gym.make("Freeway-v0")
 done = True  # env needs to be reset
 
 # TensorFlow - Construction phase
@@ -123,6 +123,10 @@ skip_start = 90
 iteration = 0
 rewards_history = []
 
+temp_counter = 1
+
+action = 0
+
 # x: [batch_size x self.height x self.width x (3 * (c.HIST_LEN))]
 num_test_rec = 1  # number of recursive predictions to make on test
 num_steps = 1000001
@@ -149,16 +153,25 @@ with tf.Session() as sess:
         if args.render:
             env.render()
 
+        prev_action = action
+
         # Actor evaluates what to do
         q_values = actor_q_values.eval(feed_dict={X_state: [state]})
         epsilon = max(epsilon_min, epsilon_max - (epsilon_max - epsilon_min) * global_step.eval() / epsilon_decay_steps)
         action = epsilon_greedy(q_values, epsilon)
+
+        # plt.imshow(obs)
+        # plt.show()
+        # print(action)
 
         # Actor plays
         obs, reward, done, info = env.step(action)
         next_state = preprocess_observation_dqn(obs)
         if args.test:
             continue
+
+        # plt.imshow(obs)
+        # plt.show()
 
         # Predict next frame of game
         # print(obs.shape) # (210, 160, 3)
@@ -171,13 +184,19 @@ with tf.Session() as sess:
 
         frames_history = np.roll(frames_history, -3, axis=3)
         frames_history[0,:,:,-3:] = utils.normalize_frames(obs.reshape((1,)+obs.shape))
-        if iteration % 1000 == 0: # TODO: replace 100 with a constante
-            # TODO: swap 0 with what you're actually trying to generate
+        if iteration % 1000 == 0: # TODO: replace 1000 with a constante
             for a in range(c.ACTION_SPACE):
                 pred = utils.denormalize_frames(dynamics_model.predict(frames_history, a, print_out=False))[0]
-                plt.imsave('./Temp3/%06i_%i.png'%(iteration, a), pred)
+                plt.imsave('./Temp5/%06i_%i.png'%(iteration, a), pred)
+
+        # if step > 0.9*n_steps:
+        #     pred = utils.denormalize_frames(dynamics_model.predict(frames_history, 0, print_out=False))[0]
+        #     plt.imsave('./Temp5/gen/g_%06i.png'%temp_counter, pred)
+        #     plt.imsave('./Temp5/ren/r_%06i.png'%(temp_counter-1), obs)
+        #     temp_counter += 1
+
         if iteration > c.HIST_LEN + num_test_rec:
-            dynamics_model.train(frames_history, action, print_out=False)
+            dynamics_model.train(frames_history, action, print_out=False) # prev_action because we are trying to predict newest frame?
         #print(pred.shape)
 
         # plt.imshow(frames_history)
