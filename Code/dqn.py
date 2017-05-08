@@ -27,7 +27,7 @@ import os
 import tensorflow as tf
 from tensorflow.contrib.layers import convolution2d, fully_connected
 
-env = gym.make("Freeway-v0")
+env = gym.make("BreakoutDeterministic-v3")
 done = True  # env needs to be reset
 
 # TensorFlow - Construction phase
@@ -125,7 +125,7 @@ rewards_history = []
 
 temp_counter = 1
 
-action = 0
+actions_history = list(range(c.NUM_ACTIONS))
 
 # x: [batch_size x self.height x self.width x (3 * (c.HIST_LEN))]
 num_test_rec = 1  # number of recursive predictions to make on test
@@ -153,8 +153,6 @@ with tf.Session() as sess:
         if args.render:
             env.render()
 
-        prev_action = action
-
         # Actor evaluates what to do
         q_values = actor_q_values.eval(feed_dict={X_state: [state]})
         epsilon = max(epsilon_min, epsilon_max - (epsilon_max - epsilon_min) * global_step.eval() / epsilon_decay_steps)
@@ -162,7 +160,8 @@ with tf.Session() as sess:
 
         # plt.imshow(obs)
         # plt.show()
-        # print(action)
+        # action = np.random.choice([2, 3])
+        # print("\n" + str(action))
 
         # Actor plays
         obs, reward, done, info = env.step(action)
@@ -184,9 +183,14 @@ with tf.Session() as sess:
 
         frames_history = np.roll(frames_history, -3, axis=3)
         frames_history[0,:,:,-3:] = utils.normalize_frames(obs.reshape((1,)+obs.shape))
+        actions_history = np.roll(actions_history, -1, axis=0)
+        actions_history[-1] = action
+
         if iteration % 1000 == 0: # TODO: replace 1000 with a constante
             for a in range(c.ACTION_SPACE):
-                pred = utils.denormalize_frames(dynamics_model.predict(frames_history, a, print_out=False))[0]
+                fake_a_hist = np.roll(actions_history, -1, axis=0)
+                fake_a_hist[-1] = a
+                pred = utils.denormalize_frames(dynamics_model.predict(frames_history, fake_a_hist, print_out=False))[0]
                 plt.imsave('./Temp5/%06i_%i.png'%(iteration, a), pred)
 
         # if step > 0.9*n_steps:
@@ -196,7 +200,7 @@ with tf.Session() as sess:
         #     temp_counter += 1
 
         if iteration > c.HIST_LEN + num_test_rec:
-            dynamics_model.train(frames_history, action, print_out=False) # prev_action because we are trying to predict newest frame?
+            dynamics_model.train(frames_history, actions_history, print_out=False) # prev_action because we are trying to predict newest frame?
         #print(pred.shape)
 
         # plt.imshow(frames_history)

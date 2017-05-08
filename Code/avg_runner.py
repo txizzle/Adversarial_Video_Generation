@@ -66,7 +66,7 @@ class AVGRunner:
         """
         # assume a is a number in range (0, c.ACTION_SPACE)
 
-        action = np.eye(c.ACTION_SPACE)[[a]]
+        action = np.eye(c.ACTION_SPACE)[a]
         # action = tf.one_hot(a, 10).eval()
         if c.ADVERSARIAL:
             # update discriminator

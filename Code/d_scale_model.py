@@ -37,7 +37,10 @@ class DScaleModel:
         self.height = height
         self.width = width
         self.conv_layer_fms = conv_layer_fms
-        self.conv_layer_fms[0] += 1 # to account for actions
+        # TODO: modify this so other layers also get more convs
+        for i in range(1, len(self.conv_layer_fms)-1):
+            self.conv_layer_fms[i] += 1
+        self.conv_layer_fms[0] += c.NUM_ACTIONS # to account for actions
         self.kernel_sizes = kernel_sizes
         self.fc_layer_sizes = fc_layer_sizes
 
@@ -54,7 +57,7 @@ class DScaleModel:
         ##
         with tf.name_scope('input'):
             self.input_frames = tf.placeholder(
-                tf.float32, shape=[None, self.height, self.width, self.conv_layer_fms[0]-1])
+                tf.float32, shape=[None, self.height, self.width, self.conv_layer_fms[0]-c.NUM_ACTIONS])
             self.input_actions = tf.placeholder(
                 tf.float32, shape=[None, c.ACTION_SPACE])
 
@@ -133,7 +136,7 @@ class DScaleModel:
                 # actions = tf.gather(self.input_actions, idx)
                 # actions = tf.concat([actions, padding], 0)
                 # actions = np.append(actions, [0 for _ in num_padding])
-                actions = tf.reshape(actions, [1, self.height, self.width, 1])
+                actions = tf.reshape(actions, [1, self.height, self.width, c.NUM_ACTIONS])
                 shape = tf.stack([tf.shape(last_input)[0], 1, 1, 1])
                 actions = tf.tile(actions, shape)
                 last_input = tf.concat([last_input, actions], 3)

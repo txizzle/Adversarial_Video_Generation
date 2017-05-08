@@ -42,8 +42,11 @@ class GeneratorModel:
         self.height_test = height_test
         self.width_test = width_test
         self.scale_layer_fms = scale_layer_fms
+        # TODO: modify this so other layers also get more convs
         for i in range(len(self.scale_layer_fms)):
-            self.scale_layer_fms[i][0] += 1
+            for j in range(1, len(self.scale_layer_fms[i])-1):
+                self.scale_layer_fms[i][j] += 1
+            self.scale_layer_fms[i][0] += 2
         self.scale_kernel_sizes = scale_kernel_sizes
         self.num_scale_nets = len(scale_layer_fms)
 
@@ -145,7 +148,7 @@ class GeneratorModel:
                             padding = [0 for _ in range(num_padding)]
                             actions = tf.map_fn(lambda x: tf.concat([x, padding], 0), actions)
 
-                            actions = tf.reshape(actions, [1, scale_height, scale_width, 1])
+                            actions = tf.reshape(actions, [1, scale_height, scale_width, c.NUM_ACTIONS])
                             preds = tf.concat([preds, actions], 3)
 
                             # actions = np.append(np.repeat(actions, num_repeats), [0 for _ in range(num_padding)])

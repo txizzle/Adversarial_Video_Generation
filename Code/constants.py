@@ -88,7 +88,8 @@ FULL_WIDTH = 160
 # the height and width of the patches to train on
 TRAIN_HEIGHT = TRAIN_WIDTH = 32
 
-ACTION_SPACE = 3
+ACTION_SPACE = 6
+NUM_ACTIONS = 2
 
 ##
 # Output
