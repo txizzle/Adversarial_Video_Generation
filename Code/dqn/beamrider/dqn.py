@@ -268,36 +268,36 @@ def learn(env,
             best_action = None
             # best_qval = float("-inf")
             best_qval = -100000
-            # for child in root.children:
-            #     cloned_buffer = copy(replay_buffer)
-            #     cloned_env = copy(env)
-            #     obs, reward, done, info = cloned_env.step(child.action)
-            #     child.set_env(cloned_env)
+            for child in root.children:
+                cloned_buffer = copy(replay_buffer)
+                cloned_env = copy(env)
+                obs, reward, done, info = cloned_env.step(child.action)
+                child.set_env(cloned_env)
 
-            #     # Actor evaluates what to do
-            #     cloned_buffer.store_effect(idx, child.action, reward, done)
-            #     cloned_idx = cloned_buffer.store_frame(obs)
-            #     input_batch = cloned_buffer.encode_recent_observation()
-            #     q_vals = session.run(current_q_func, {obs_t_ph: input_batch[None, :]})
-            #     child_best_qval = np.max(q_vals) # Skipping epsilon-greedy
-            #     if child_best_qval > best_qval:
-            #         best_qval = child_best_qval
-            #         best_action = child.action # Set best action from ROOT to be action that leads to this child
-            #     root.explored_children += 1 # Not needed right now
-            #     cloned_env.close() # closed cloned env
+                # Actor evaluates what to do
+                cloned_buffer.store_effect(idx, child.action, reward, done)
+                cloned_idx = cloned_buffer.store_frame(obs)
+                input_batch = cloned_buffer.encode_recent_observation()
+                q_vals = session.run(current_q_func, {obs_t_ph: input_batch[None, :]})
+                child_best_qval = np.max(q_vals) # Skipping epsilon-greedy
+                if child_best_qval > best_qval:
+                    best_qval = child_best_qval
+                    best_action = child.action # Set best action from ROOT to be action that leads to this child
+                root.explored_children += 1 # Not needed right now
+                cloned_env.close() # closed cloned env
 
             # Compute DQN Action
             input_batch = replay_buffer.encode_recent_observation()
             q_vals = session.run(current_q_func, {obs_t_ph: input_batch[None, :]})
             act = np.argmax(q_vals)
 
-            # if best_action != act: # So we ignore e-greedy
-            #     # print("Different actions! DQN: " + str(act) + ", Lookahead: " + str(best_action) + "\n")
-            #     diff += 1
-            #     act = best_action # Force action to be best action
-            # else:
-            #     # print("DQN and Lookahead predict same actions!\n")
-            #     same += 1
+            if best_action != act: # So we ignore e-greedy
+                # print("Different actions! DQN: " + str(act) + ", Lookahead: " + str(best_action) + "\n")
+                diff += 1
+                act = best_action # Force action to be best action
+            else:
+                # print("DQN and Lookahead predict same actions!\n")
+                same += 1
 
         # Step simulator forward one step
         last_obs, reward, done, info = env.step(act)
@@ -416,11 +416,10 @@ def learn(env,
             sys.stdout.flush()
 
         if t % SAVE_EVERY_N_STEPS == 0 and model_initialized:
-            # training_log = ({'t_log': t_log, 'mean_reward_log': mean_reward_log, 'best_mean_log': best_mean_log, 'episodes_log': episodes_log,
-            #     'exploration_log': exploration_log, 'learning_rate_log': learning_rate_log, 'diff': diff_log, 'same': same_log})
             training_log = ({'t_log': t_log, 'mean_reward_log': mean_reward_log, 'best_mean_log': best_mean_log, 'episodes_log': episodes_log,
-                'exploration_log': exploration_log, 'learning_rate_log': learning_rate_log})
-            output_file_name = 'breakout_dqn_' + str(t) + '_data.pkl'
-            output_file_name = 'breakout_dqn_' + str(t) + '_data.pkl'
+                'exploration_log': exploration_log, 'learning_rate_log': learning_rate_log, 'diff': diff_log, 'same': same_log})
+            # training_log = ({'t_log': t_log, 'mean_reward_log': mean_reward_log, 'best_mean_log': best_mean_log, 'episodes_log': episodes_log,
+            #     'exploration_log': exploration_log, 'learning_rate_log': learning_rate_log})
+            output_file_name = 'beamrider_la_' + str(t) + '_data.pkl'
             with open(output_file_name, 'wb') as f:
                 pickle.dump(training_log, f)
