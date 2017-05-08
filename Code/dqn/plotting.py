@@ -4,15 +4,22 @@ from matplotlib.backends.backend_pdf import PdfPages
 import pickle
 
 # Plotting for Q1, performance on Pong for lr=1 on images for 4.2m steps
-pixel_data = pickle.load(open('ram_lr1.0_1400000_data.pkl','rb'))
+pixel_data = pickle.load(open('pong_step5000000_data.pkl','rb')) # lookahead
 pixel_t = pixel_data['t_log']
 pixel_mean_rewards = pixel_data['mean_reward_log']
 pixel_best_rewards = pixel_data['best_mean_log']
 
+lookahead_data = pickle.load(open('lr1.0_2800000_data.pkl','rb')) # lookahead
+lookahead_t = lookahead_data['t_log']
+lookahead_mean_rewards = lookahead_data['mean_reward_log']
+lookahead_best_rewards = lookahead_data['best_mean_log']
+
 pixel_plot= plt.figure()
-pixel_mean_rew, = plt.plot(pixel_t, pixel_mean_rewards, label='Mean 100-Episode Reward')
-pixel_best_rew, = plt.plot(pixel_t, pixel_best_rewards, label='Best Mean Reward')
-plt.suptitle('Q-Learning Performance on Pong with Pixels', fontsize=20)
+pixel_mean_rew, = plt.plot(pixel_t, pixel_mean_rewards, label='DQN Mean 100-Episode Reward')
+pixel_best_rew, = plt.plot(pixel_t, pixel_best_rewards, label='DQN Best Mean Reward')
+la_mean_rew, = plt.plot(lookahead_t, lookahead_mean_rewards, label='Lookahead Mean 100-Episode Reward')
+la_best_rew, = plt.plot(lookahead_t, lookahead_best_rewards, label='Lookahead Best Mean Reward')
+plt.suptitle('DQN vs. DQN + Lookahead Performance on Pong', fontsize=20)
 plt.xlabel('Timesteps')
 plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 plt.ylabel('Reward')
