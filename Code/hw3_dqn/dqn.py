@@ -161,6 +161,8 @@ def learn(env,
     episodes_log = []
     exploration_log = []
     learning_rate_log = []
+    diff_log = [0]
+    same_log = [0]
     current_q_func = q_func(obs_t_float, num_actions, scope="q_func", reuse=False) # Current Q-Value Function
     q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
 
@@ -199,6 +201,11 @@ def learn(env,
     last_obs = env.reset()
     LOG_EVERY_N_STEPS = 10000
     SAVE_EVERY_N_STEPS = 200000
+
+    # Edit for lookahead b/c monitor doesn't work for copy()'d envs
+    episode_rewards = []
+    total_rew = 0.0
+    diff, same = 0, 0
 
     for t in itertools.count():
         ### 1. Check stopping criterion
@@ -268,7 +275,8 @@ def learn(env,
                 child.set_env(cloned_env)
 
                 # Actor evaluates what to do
-                cloned_buffer.store_frame(obs)
+                cloned_buffer.store_effect(idx, child.action, reward, done)
+                cloned_idx = cloned_buffer.store_frame(obs)
                 input_batch = cloned_buffer.encode_recent_observation()
                 q_vals = session.run(current_q_func, {obs_t_ph: input_batch[None, :]})
                 child_best_qval = np.max(q_vals) # Skipping epsilon-greedy
@@ -284,16 +292,22 @@ def learn(env,
             act = np.argmax(q_vals)
 
             if best_action != act: # So we ignore e-greedy
-                print("Different actions! DQN: " + str(act) + ", Lookahead: " + str(best_action) + "\n")
+                # print("Different actions! DQN: " + str(act) + ", Lookahead: " + str(best_action) + "\n")
+                diff += 1
+                act = best_action # Force action to be best action
             else:
-                print("DQN and Lookahead predict same actions!\n")
+                # print("DQN and Lookahead predict same actions!\n")
+                same += 1
 
         # Step simulator forward one step
-        last_obs, reward, done, info = env.step(best_action)
-        replay_buffer.store_effect(idx, best_action, reward, done) # Store action taken after last_obs and corresponding reward
+        last_obs, reward, done, info = env.step(act)
+        replay_buffer.store_effect(idx, act, reward, done) # Store action taken after last_obs and corresponding reward
+        total_rew += reward
 
         if done == True: # done was True in latest transition; we have already stored that
             last_obs = env.reset() # Reset observation
+            episode_rewards.append(total_rew)
+            total_rew = 0.0
             done = False 
 
         #####
@@ -368,11 +382,20 @@ def learn(env,
             #####
 
         ### 4. Log progress
-        episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
+        # episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
+        # print(np.array(episode_rewards).shape)
+        # print(episode_rewards)
+        # if len(episode_rewards) > 0:
+        #     mean_episode_reward = np.mean(episode_rewards[-100:])
+        # if len(episode_rewards) > 100:
+        #     best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
         if len(episode_rewards) > 0:
             mean_episode_reward = np.mean(episode_rewards[-100:])
         if len(episode_rewards) > 100:
             best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
+        # print(episode_rewards)
+        # else:
+        #     print('len ep rewards < 100')
         if t % LOG_EVERY_N_STEPS == 0 and model_initialized:
             print("Timestep %d" % (t,))
             t_log.append(t)
@@ -386,11 +409,15 @@ def learn(env,
             exploration_log.append(exploration.value(t))
             print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
             learning_rate_log.append(optimizer_spec.lr_schedule.value(t))
+            print("diff since last:: %d" % (diff - diff_log[-1]))
+            diff_log.append(diff)
+            print("same since last: %d" % (same - same_log[-1]))
+            same_log.append(same)
             sys.stdout.flush()
 
         if t % SAVE_EVERY_N_STEPS == 0 and model_initialized:
             training_log = ({'t_log': t_log, 'mean_reward_log': mean_reward_log, 'best_mean_log': best_mean_log, 'episodes_log': episodes_log,
-                'exploration_log': exploration_log, 'learning_rate_log': learning_rate_log})
-            output_file_name = 'ram_lr'+str(lr_multiplier)+'_' + str(t) + '_data.pkl'
+                'exploration_log': exploration_log, 'learning_rate_log': learning_rate_log, 'diff': diff_log, 'same': same_log})
+            output_file_name = 'lr'+str(lr_multiplier)+'_' + str(t) + '_data.pkl'
             with open(output_file_name, 'wb') as f:
                 pickle.dump(training_log, f)
