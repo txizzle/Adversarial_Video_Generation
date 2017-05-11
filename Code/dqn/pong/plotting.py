@@ -10,7 +10,7 @@ pixel_t = pixel_data['t_log']
 pixel_mean_rewards = pixel_data['mean_reward_log']
 pixel_best_rewards = pixel_data['best_mean_log']
 
-lookahead_data = pickle.load(open('pong_tree_2800000_data.pkl','rb')) # tree
+lookahead_data = pickle.load(open('pong_tree2_200000_data.pkl','rb')) # tree
 lookahead_t = lookahead_data['t_log']
 lookahead_mean_rewards = lookahead_data['mean_reward_log']
 lookahead_best_rewards = lookahead_data['best_mean_log']
