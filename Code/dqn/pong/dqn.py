@@ -317,13 +317,13 @@ def learn(env,
             q_vals = session.run(current_q_func, {obs_t_ph: input_batch[None, :]})
             act = np.argmax(q_vals)
 
-            # if best_action != act: # So we ignore e-greedy
-            #     # print("Different actions! DQN: " + str(act) + ", Lookahead: " + str(best_action) + "\n")
-            #     diff += 1
-            #     act = best_action # Force action to be best action
-            # else:
-            #     # print("DQN and Lookahead predict same actions!\n")
-            #     same += 1
+            if best_action != act: # So we ignore e-greedy
+                # print("Different actions! DQN: " + str(act) + ", Lookahead: " + str(best_action) + "\n")
+                diff += 1
+                act = best_action # Force action to be best action
+            else:
+                # print("DQN and Lookahead predict same actions!\n")
+                same += 1
 
         # Step simulator forward one step
         last_obs, reward, done, info = env.step(act)
