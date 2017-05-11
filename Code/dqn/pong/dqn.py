@@ -15,7 +15,7 @@ OptimizerSpec = namedtuple("OptimizerSpec", ["constructor", "kwargs", "lr_schedu
 # Game Tree
 class Node:
     def __init__(self, parent, action):
-        self.state = None
+        self.env = None
         self.parent = parent
         self.action = action # Action parent took to get to child
         self.children = []
@@ -25,18 +25,23 @@ class Node:
         # self.visits = 0
         # self.value = 0
 
-    def set_env(self, state):
-        self.state = state
+    def set_env(self, env):
+        self.env = env
 
-def add_children(node, branching_factor):
+    def get_env(self):
+        return self.env
+
+def add_children(parent, branching_factor):
     for action in range(branching_factor):
-        child = Node(node, action)
-        child.depth = node.depth + 1
-        if node.depth == 0:
+        # print("Adding child with action: " + str(action))
+        child = Node(parent, action)
+        child.depth = parent.depth + 1
+        child.set_env(parent.get_env())
+        if parent.depth == 0:
             child.root_action = action
         else:
-            child.root_action = node.root_action
-        node.children.append(child)
+            child.root_action = parent.root_action
+        parent.children.append(child)
 
 def learn(env,
           q_func,
@@ -267,10 +272,13 @@ def learn(env,
 
             # Create state tree
             BRANCHING_FACTOR = env.action_space.n
+            MAX_DEPTH = 2
             root = Node(None, None)
             root.set_env(env)
+            children_list = []
             add_children(root, BRANCHING_FACTOR) # expand to depth 1, HARDCODED right now
-            children_list = [root]
+            for child in root.children:
+                children_list.append(child)
             best_action = None
             # best_qval = float("-inf")
             best_qval = -100000
@@ -279,28 +287,30 @@ def learn(env,
                 child = children_list.pop()
 
                 # Evaluate action for child
-                cloned_buffer = copy(replay_buffer)
-                cloned_env = copy(env)
-                print("chidl action: " + str(child.action))
+                cloned_env = copy(child.get_env())
+                # print("child action: " + str(child.action))
                 obs, reward, done, info = cloned_env.step(child.action)
                 child.set_env(cloned_env)
 
                 # Actor evaluates what to do
-                if child.depth == 2:
+                if child.depth == MAX_DEPTH:
+                    # Leaf node, evaluate expected value of observation 
+                    cloned_buffer = copy(replay_buffer)
                     cloned_buffer.store_effect(idx, child.action, reward, done)
                     cloned_idx = cloned_buffer.store_frame(obs)
                     input_batch = cloned_buffer.encode_recent_observation()
                     q_vals = session.run(current_q_func, {obs_t_ph: input_batch[None, :]})
-                    child_best_qval = np.max(q_vals) # Skipping epsilon-greedy
+                    child_best_qval = np.max(q_vals)
                     if child_best_qval > best_qval:
                         best_qval = child_best_qval
                         best_action = child.root_action # Set best action from ROOT to be action that leads to this child
                     root.explored_children += 1 # Not needed right now
                 else:
+                    # Inner node, don't evaluate value
                     add_children(child, BRANCHING_FACTOR)
                     for added_child in child.children:
                         children_list.append(added_child)
-                cloned_env.close() # closed cloned env
+                cloned_env.close() # close cloned env
 
             # Compute DQN Action
             input_batch = replay_buffer.encode_recent_observation()
